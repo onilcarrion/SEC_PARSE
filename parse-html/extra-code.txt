@@ -165,3 +165,410 @@ async function fetchAndParseURL(url: string): Promise<void> {
 }
 
 fetchAndParseURL(url);
+
+//V2
+import axios, { AxiosError } from 'axios';
+import * as cheerio from 'cheerio';
+import * as fs from 'fs';
+import { decode } from 'html-entities';
+
+// Define the items to check for
+const itemsToCheck = [
+    '1.01', '1.02', '1.03',
+    '2.01', '2.02', '2.03',
+    '4.01', '4.02',
+    '5.02', '5.03',
+    '8.01'
+];
+
+// URL to fetch
+const url = 'https://www.sec.gov/Archives/edgar/data/1018724/000101872421000016/0001018724-21-000016.txt';
+
+// User-Agents to rotate
+const userAgents = [
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/89.0',
+];
+
+async function fetchAndParseURL(url: string): Promise<void> {
+    const maxRetries = 3;
+    let attempt = 0;
+
+    while (attempt < maxRetries) {
+        try {
+            const userAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
+            console.log(`Attempt ${attempt + 1} with User-Agent: ${userAgent}`);
+            
+            // Fetch the URL content with a random User-Agent
+            const response = await axios.get(url, {
+                headers: {
+                    'User-Agent': userAgent
+                },
+                timeout: 10000 // Set a timeout to avoid hanging requests
+            });
+
+            let data = response.data;
+
+            // Decode any HTML entities
+            data = decode(data);
+
+            // Load the data into cheerio for parsing
+            const $ = cheerio.load(data);
+
+            // Extract text between <DOCUMENT> and </DOCUMENT> tags
+            const documentText = $('DOCUMENT').text();
+
+            // Split the text into lines
+            const lines = documentText.split('\n');
+
+            // Define a function to determine if a line is mostly alphanumeric
+            const isMostlyAlphanumeric = (line: string) => {
+                const cleanedLine = line.replace(/[^\x20-\x7E]/g, '');
+                const alphanumericLine = cleanedLine.replace(/[^a-zA-Z0-9\s.]/g, '');
+                const alphanumericRatio = alphanumericLine.replace(/\s+/g, '').length / line.length;
+                return alphanumericRatio > 0.7;
+            };
+
+            // Define a function to check if a line contains meaningful text
+            const isMeaningfulText = (line: string) => {
+                // Check if the line contains at least one vowel, which indicates it could be a word
+                const vowels = /[aeiouAEIOU]/;
+                return vowels.test(line);
+            };
+
+            // Filter out irrelevant lines
+            const relevantLines = lines.filter(line => isMostlyAlphanumeric(line) && isMeaningfulText(line));
+
+            // Further clean the lines to remove residual unwanted characters
+            const cleanedLines = relevantLines.map(line => {
+                return line.replace(/[^a-zA-Z0-9\s.]/g, '');
+            });
+
+            // Join the cleaned lines
+            const filteredText = cleanedLines.join(' ');
+
+            // Check if the filtered text contains the required items
+            const containsRelevantItems = itemsToCheck.some(item => filteredText.includes(item));
+
+            if (containsRelevantItems) {
+                // Split the text into sentences based on periods
+                const sentences = filteredText.split('.').map(sentence => sentence.trim() + '.');
+
+                // Join the sentences back together with newlines for readability
+                const formattedText = sentences.join('\n');
+
+                // Save the formatted text to a new file
+                const outputFileName = 'parsed-document.txt';
+                fs.writeFileSync(outputFileName, formattedText);
+
+                console.log(`Relevant information has been saved to ${outputFileName}`);
+            } else {
+                console.log('The document does not contain the required items and will not be saved.');
+            }
+            break; // Exit the loop if successful
+        } catch (error) {
+            if (error instanceof AxiosError) {
+                console.error('Error fetching or parsing the URL:', error.message);
+
+                if (error.response && error.response.status === 403) {
+                    console.log('Received 403 Forbidden error. Trying again...');
+                    attempt++;
+                    await new Promise(resolve => setTimeout(resolve, 5000)); // Wait before retrying
+                } else {
+                    // Handle other Axios errors
+                    break; // Exit the loop for other errors
+                }
+            } else {
+                // Handle non-Axios errors
+                console.error('Unexpected error:', error);
+                break; // Exit the loop for unexpected errors
+            }
+        }
+    }
+}
+
+fetchAndParseURL(url);
+
+
+//??????
+// import axios from 'axios';
+// import * as cheerio from 'cheerio';
+// import * as fs from 'fs';
+// import { decode } from 'html-entities';
+
+// const url = 'https://www.sec.gov/Archives/edgar/data/1018724/000101872418000002/0001018724-18-000002.txt';
+// //(const url = 'https://www.sec.gov/Archives/edgar/data/1018724/000119312518139368/0001193125-18-139368.txt';
+
+// async function fetchAndParseURL(url: string): Promise<void> {
+//     try {
+//         // Fetch the URL content with a custom User-Agent
+//         const response = await axios.get(url, {
+//             headers: {
+//                 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+//             }
+//         });
+//         let data = response.data;
+
+//         // Decode any HTML entities
+//         data = decode(data);
+
+//         // Load the data into cheerio for parsing
+//         const $ = cheerio.load(data);
+
+//         // Extract text between <DOCUMENT> and </DOCUMENT> tags
+//         const documentText = $('DOCUMENT').text();
+
+//         // Split the text into lines
+//         const lines = documentText.split('\n');
+
+//         // Filter out irrelevant lines
+//         const relevantLines = lines.filter(line => {
+//             // Remove non-printable and special characters
+//             const cleanedLine = line.replace(/[^\x20-\x7E]/g, '');
+//             const alphanumericLine = cleanedLine.replace(/[^a-zA-Z0-9\s.]/g, ''); // Remove remaining non-alphanumeric characters
+//             const alphanumericRatio = alphanumericLine.replace(/\s+/g, '').length / line.length;
+//             return alphanumericRatio > 0.7; // Keep lines with more than 70% alphanumeric characters
+//         });
+
+//         // Join the filtered lines
+//         const filteredText = relevantLines.join(' ');
+
+//         // Split the text into sentences based on periods
+//         const sentences = filteredText.split('.').map(sentence => sentence.trim() + '.');
+
+//         // Join the sentences back together with newlines for readability
+//         const formattedText = sentences.join('\n');
+
+//         // Save the formatted text to a new file
+//         const outputFileName = 'parsed-document.txt';
+//         fs.writeFileSync(outputFileName, formattedText);
+
+//         console.log(`Relevant information has been saved to ${outputFileName}`);
+//     } catch (error) {
+//         console.error('Error fetching or parsing the URL:', error);
+//     }
+// }
+
+// fetchAndParseURL(url);
+
+//BEST VERSION
+// import axios, { AxiosError } from 'axios';
+// import * as cheerio from 'cheerio';
+// import * as fs from 'fs';
+// import { decode } from 'html-entities';
+
+// // Define the items to check for
+// const itemsToCheck = [
+//     '1.01', '1.02', '1.03',
+//     '2.01', '2.02', '2.03',
+//     '4.01', '4.02',
+//     '5.02', '5.03',
+//     '8.01'
+// ];
+
+// // URL to fetch
+// const url = 'https://www.sec.gov/Archives/edgar/data/1018724/000101872421000016/0001018724-21-000016.txt';
+
+// // User-Agents to rotate
+// const userAgents = [
+//     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+//     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+//     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/89.0',
+// ];
+
+// async function fetchAndParseURL(url: string): Promise<void> {
+//     const maxRetries = 3;
+//     let attempt = 0;
+
+//     while (attempt < maxRetries) {
+//         try {
+//             const userAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
+//             console.log(`Attempt ${attempt + 1} with User-Agent: ${userAgent}`);
+            
+//             // Fetch the URL content with a random User-Agent
+//             const response = await axios.get(url, {
+//                 headers: {
+//                     'User-Agent': userAgent
+//                 },
+//                 timeout: 10000 // Set a timeout to avoid hanging requests
+//             });
+
+//             let data = response.data;
+
+//             // Decode any HTML entities
+//             data = decode(data);
+
+//             // Load the data into cheerio for parsing
+//             const $ = cheerio.load(data);
+
+//             // Extract text between <DOCUMENT> and </DOCUMENT> tags
+//             const documentText = $('DOCUMENT').text();
+
+//             // Split the text into lines
+//             const lines = documentText.split('\n');
+
+//             // Define a function to determine if a line is mostly alphanumeric
+//             const isMostlyAlphanumeric = (line: string) => {
+//                 const cleanedLine = line.replace(/[^\x20-\x7E]/g, '');
+//                 const alphanumericLine = cleanedLine.replace(/[^a-zA-Z0-9\s.]/g, '');
+//                 const alphanumericRatio = alphanumericLine.replace(/\s+/g, '').length / line.length;
+//                 return alphanumericRatio > 0.7;
+//             };
+
+//             // Define a function to check if a line contains meaningful text
+//             const isMeaningfulText = (line: string) => {
+//                 // Check if the line contains at least one vowel, which indicates it could be a word
+//                 const vowels = /[aeiouAEIOU]/;
+//                 return vowels.test(line);
+//             };
+
+//             // Filter out irrelevant lines
+//             const relevantLines = lines.filter(line => isMostlyAlphanumeric(line) && isMeaningfulText(line));
+
+//             // Further clean the lines to remove residual unwanted characters
+//             const cleanedLines = relevantLines.map(line => {
+//                 return line.replace(/[^a-zA-Z0-9\s.]/g, '');
+//             });
+
+//             // Join the cleaned lines
+//             const filteredText = cleanedLines.join(' ');
+
+//             // Check if the filtered text contains the required items
+//             const containsRelevantItems = itemsToCheck.some(item => filteredText.includes(item));
+
+//             if (containsRelevantItems) {
+//                 // Split the text into sentences based on periods
+//                 const sentences = filteredText.split('.').map(sentence => sentence.trim() + '.');
+
+//                 // Join the sentences back together with newlines for readability
+//                 const formattedText = sentences.join('\n');
+
+//                 // Save the formatted text to a new file
+//                 const outputFileName = 'parsed-document.txt';
+//                 fs.writeFileSync(outputFileName, formattedText);
+
+//                 console.log(`Relevant information has been saved to ${outputFileName}`);
+//             } else {
+//                 console.log('The document does not contain the required items and will not be saved.');
+//             }
+//             break; // Exit the loop if successful
+//         } catch (error) {
+//             if (error instanceof AxiosError) {
+//                 console.error('Error fetching or parsing the URL:', error.message);
+
+//                 if (error.response && error.response.status === 403) {
+//                     console.log('Received 403 Forbidden error. Trying again...');
+//                     attempt++;
+//                     await new Promise(resolve => setTimeout(resolve, 5000)); // Wait before retrying
+//                 } else {
+//                     // Handle other Axios errors
+//                     break; // Exit the loop for other errors
+//                 }
+//             } else {
+//                 // Handle non-Axios errors
+//                 console.error('Unexpected error:', error);
+//                 break; // Exit the loop for unexpected errors
+//             }
+//         }
+//     }
+// }
+
+// fetchAndParseURL(url);
+
+
+
+
+
+//v0?????
+
+// import axios from 'axios';
+// import * as cheerio from 'cheerio';
+// import * as fs from 'fs';
+// import { decode } from 'html-entities';
+
+// // Define the items to check for
+// const itemsToCheck = [
+//     '1.01', '1.02', '1.03',
+//     '2.01', '2.02', '2.03',
+//     '4.01', '4.02',
+//     '5.02', '5.03',
+//     '8.01'
+// ];
+
+// // URL to fetch
+// //const url = 'https://www.sec.gov/Archives/edgar/data/1018724/000119312518139368/0001193125-18-139368.txt'; // Example URL (works)
+// const url = 'https://www.sec.gov/Archives/edgar/data/1018724/000101872421000016/0001018724-21-000016.txt';
+
+// async function fetchAndParseURL(url: string): Promise<void> {
+//     try {
+//         // Fetch the URL content with a custom User-Agent
+//         const response = await axios.get(url, {
+//             headers: {
+//                 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+//             }
+//         });
+//         let data = response.data;
+
+//         // Decode any HTML entities
+//         data = decode(data);
+
+//         // Load the data into cheerio for parsing
+//         const $ = cheerio.load(data);
+
+//         // Extract text between <DOCUMENT> and </DOCUMENT> tags
+//         const documentText = $('DOCUMENT').text();
+
+//         // Split the text into lines
+//         const lines = documentText.split('\n');
+
+//         // Define a function to determine if a line is mostly alphanumeric
+//         const isMostlyAlphanumeric = (line: string) => {
+//             const cleanedLine = line.replace(/[^\x20-\x7E]/g, '');
+//             const alphanumericLine = cleanedLine.replace(/[^a-zA-Z0-9\s.]/g, '');
+//             const alphanumericRatio = alphanumericLine.replace(/\s+/g, '').length / line.length;
+//             return alphanumericRatio > 0.7;
+//         };
+
+//         // Define a function to check if a line contains meaningful text
+//         const isMeaningfulText = (line: string) => {
+//             // Check if the line contains at least one vowel, which indicates it could be a word
+//             const vowels = /[aeiouAEIOU]/;
+//             return vowels.test(line);
+//         };
+
+//         // Filter out irrelevant lines
+//         const relevantLines = lines.filter(line => isMostlyAlphanumeric(line) && isMeaningfulText(line));
+
+//         // Further clean the lines to remove residual unwanted characters
+//         const cleanedLines = relevantLines.map(line => {
+//             return line.replace(/[^a-zA-Z0-9\s.]/g, '');
+//         });
+
+//         // Join the cleaned lines
+//         const filteredText = cleanedLines.join(' ');
+
+//         // Check if the filtered text contains the required items
+//         const containsRelevantItems = itemsToCheck.some(item => filteredText.includes(item));
+
+//         if (containsRelevantItems) {
+//             // Split the text into sentences based on periods
+//             const sentences = filteredText.split('.').map(sentence => sentence.trim() + '.');
+
+//             // Join the sentences back together with newlines for readability
+//             const formattedText = sentences.join('\n');
+
+//             // Save the formatted text to a new file
+//             const outputFileName = 'parsed-document.txt';
+//             fs.writeFileSync(outputFileName, formattedText);
+
+//             console.log(`Relevant information has been saved to ${outputFileName}`);
+//         } else {
+//             console.log('The document does not contain the required items and will not be saved.');
+//         }
+//     } catch (error) {
+//         console.error('Error fetching or parsing the URL:', error);
+//     }
+// }
+
+// fetchAndParseURL(url);
