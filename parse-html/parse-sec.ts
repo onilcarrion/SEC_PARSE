@@ -249,6 +249,7 @@
 
 // fetchAndParseURL(url);
 
+
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import * as fs from 'fs';
@@ -272,7 +273,10 @@ const itemsToCheck = [
 ];
 
 // Summarization API endpoint
-const apiUrl = 'https://endpoints.owlin.ai/complete/text';
+const apiUrl = 'https://api.owlin.ai/v2/complete/text';
+
+// API Key (replace with your actual API key)
+const apiKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiODlhZTcxOTYtMTMzYS00YmQ3LWE0MTgtNmVmMmI2Y2MxYzA4IiwiYXNfc2NvcGUiOiJvd2xpbl9lbXBsb3llZSIsImlhdCI6MTcyMTIxNTUwNCwiZXhwIjoxNzIzODkzOTA0fQ.p-ZUSiFMyRcDXtZutR4rIfujD2mCRQNELqQHMSfOl6E';
 
 async function summarizeText(text: string): Promise<string> {
     try {
@@ -283,18 +287,28 @@ async function summarizeText(text: string): Promise<string> {
         }, {
             headers: {
                 'Content-Type': 'application/json',
-                // Uncomment and add your API key if required
-                // 'Authorization': 'Bearer YOUR_API_KEY'
+                'Authorization': `Bearer ${apiKey}`
             }
         });
 
-        if (response.data && response.data.output) {
-            return response.data.output;
+        // Log the entire response for inspection
+        console.log('API Response:', response.data);
+
+        if (response.data && response.data.completion) {
+            return response.data.completion;
         } else {
             return 'Summary not available';
         }
-    } catch (error) {
-        console.error('Error summarizing text:', error);
+    } catch (error: unknown) {
+        if (axios.isAxiosError(error)) {
+            console.error('Error summarizing text:', error.response ? error.response.data : error.message);
+            if (error.response) {
+                console.error('Response status:', error.response.status);
+                console.error('Response headers:', error.response.headers);
+            }
+        } else {
+            console.error('Unexpected error:', error instanceof Error ? error.message : 'Unknown error');
+        }
         throw error;
     }
 }
@@ -328,13 +342,19 @@ async function fetchAndParseURL(url: string): Promise<void> {
             // Extract text between <DOCUMENT> and </DOCUMENT> tags
             const documentText = $('DOCUMENT').text();
 
+            // Check if the documentText is empty
+            if (!documentText.trim()) {
+                console.log('No relevant content found in the document.');
+                break;
+            }
+
             // Split the text into lines
             const lines = documentText.split('\n');
 
             // Initialize flags and storage for filtered content
             let inRelevantSection = false;
             let filteredLines: string[] = [];
-            
+
             // Process each line to determine if it's in a relevant section
             for (const line of lines) {
                 if (line.startsWith('begin')) {
@@ -363,6 +383,11 @@ async function fetchAndParseURL(url: string): Promise<void> {
                 }
             });
 
+            if (!anyItemFound) {
+                console.log('No relevant items found. Exiting.');
+                break;
+            }
+
             // Split the text into sentences based on periods
             const sentences = filteredText.split('.').map(sentence => sentence.trim() + '.');
 
@@ -373,30 +398,25 @@ async function fetchAndParseURL(url: string): Promise<void> {
             console.log('Formatted Text Length:', formattedText.length);
             console.log('Formatted Text Preview:', formattedText.slice(0, 200)); // Preview first 200 characters
 
-            // Determine if the document should be saved based on the presence of any items
-            if (anyItemFound) {
-                // Save the formatted text to a new file
-                const outputFileName = 'parsed-document.txt';
-                fs.writeFileSync(outputFileName, formattedText);
-                console.log(`Relevant information has been saved to ${outputFileName}`);
+            // Save the formatted text to a new file
+            const outputFileName = 'parsed-document.txt';
+            fs.writeFileSync(outputFileName, formattedText);
+            console.log(`Relevant information has been saved to ${outputFileName}`);
 
-                // Summarize the parsed document
-                const summary = await summarizeText(formattedText);
+            // Summarize the parsed document
+            const summary = await summarizeText(formattedText);
 
-                // Debugging: Check the content of the summary
-                console.log('Summary Length:', summary.length);
-                console.log('Summary Preview:', summary.slice(0, 200)); // Preview first 200 characters
+            // Debugging: Check the content of the summary
+            console.log('Summary Length:', summary.length);
+            console.log('Summary Preview:', summary.slice(0, 200)); // Preview first 200 characters
 
-                // Save the summary to a new file
-                const summaryFileName = 'summary.txt';
-                fs.writeFileSync(summaryFileName, summary);
-                console.log(`Summary has been saved to ${summaryFileName}`);
-            } else {
-                console.log('The document does not contain the required items and will not be saved.');
-            }
+            // Save the summary to a new file
+            const summaryFileName = 'summary.txt';
+            fs.writeFileSync(summaryFileName, summary);
+            console.log(`Summary has been saved to ${summaryFileName}`);
 
             break; // Exit the loop if successful
-        } catch (error) {
+        } catch (error: unknown) {
             if (axios.isAxiosError(error)) {
                 // Handle AxiosError
                 console.error('Error fetching or parsing the URL:', error.message);
@@ -411,7 +431,7 @@ async function fetchAndParseURL(url: string): Promise<void> {
                 }
             } else {
                 // Handle non-Axios errors
-                console.error('Unexpected error:', error);
+                console.error('Unexpected error:', error instanceof Error ? error.message : 'Unknown error');
                 break; // Exit the loop for unexpected errors
             }
         }
@@ -419,6 +439,9 @@ async function fetchAndParseURL(url: string): Promise<void> {
 }
 
 fetchAndParseURL(url);
+
+
+
 
 
 

@@ -260,7 +260,9 @@ var itemsToCheck = [
     '4.01', '4.02', '5.01', '5.02', '7.01', '8.01'
 ];
 // Summarization API endpoint
-var apiUrl = 'https://endpoints.owlin.ai/complete/text';
+var apiUrl = 'https://api.owlin.ai/v2/complete/text';
+// API Key (replace with your actual API key)
+var apiKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiODlhZTcxOTYtMTMzYS00YmQ3LWE0MTgtNmVmMmI2Y2MxYzA4IiwiYXNfc2NvcGUiOiJvd2xpbl9lbXBsb3llZSIsImlhdCI6MTcyMTIxNTUwNCwiZXhwIjoxNzIzODkzOTA0fQ.p-ZUSiFMyRcDXtZutR4rIfujD2mCRQNELqQHMSfOl6E';
 function summarizeText(text) {
     return __awaiter(this, void 0, void 0, function () {
         var response, error_1;
@@ -275,14 +277,15 @@ function summarizeText(text) {
                         }, {
                             headers: {
                                 'Content-Type': 'application/json',
-                                // Uncomment and add your API key if required
-                                // 'Authorization': 'Bearer YOUR_API_KEY'
+                                'Authorization': "Bearer ".concat(apiKey)
                             }
                         })];
                 case 1:
                     response = _a.sent();
-                    if (response.data && response.data.output) {
-                        return [2 /*return*/, response.data.output];
+                    // Log the entire response for inspection
+                    console.log('API Response:', response.data);
+                    if (response.data && response.data.completion) {
+                        return [2 /*return*/, response.data.completion];
                     }
                     else {
                         return [2 /*return*/, 'Summary not available'];
@@ -290,7 +293,16 @@ function summarizeText(text) {
                     return [3 /*break*/, 3];
                 case 2:
                     error_1 = _a.sent();
-                    console.error('Error summarizing text:', error_1);
+                    if (axios_1.default.isAxiosError(error_1)) {
+                        console.error('Error summarizing text:', error_1.response ? error_1.response.data : error_1.message);
+                        if (error_1.response) {
+                            console.error('Response status:', error_1.response.status);
+                            console.error('Response headers:', error_1.response.headers);
+                        }
+                    }
+                    else {
+                        console.error('Unexpected error:', error_1 instanceof Error ? error_1.message : 'Unknown error');
+                    }
                     throw error_1;
                 case 3: return [2 /*return*/];
             }
@@ -310,7 +322,7 @@ function fetchAndParseURL(url) {
                         return __generator(this, function (_b) {
                             switch (_b.label) {
                                 case 0:
-                                    _b.trys.push([0, 5, , 11]);
+                                    _b.trys.push([0, 3, , 9]);
                                     userAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
                                     console.log("Attempt ".concat(attempt + 1, " with User-Agent: ").concat(userAgent));
                                     return [4 /*yield*/, axios_1.default.get(url, {
@@ -326,6 +338,11 @@ function fetchAndParseURL(url) {
                                     data = (0, html_entities_1.decode)(data);
                                     $ = cheerio.load(data);
                                     documentText = $('DOCUMENT').text();
+                                    // Check if the documentText is empty
+                                    if (!documentText.trim()) {
+                                        console.log('No relevant content found in the document.');
+                                        return [2 /*return*/, "break"];
+                                    }
                                     lines = documentText.split('\n');
                                     inRelevantSection = false;
                                     filteredLines = [];
@@ -356,12 +373,15 @@ function fetchAndParseURL(url) {
                                             console.log("Item ".concat(item, " is NOT present in the document."));
                                         }
                                     });
+                                    if (!anyItemFound_1) {
+                                        console.log('No relevant items found. Exiting.');
+                                        return [2 /*return*/, "break"];
+                                    }
                                     sentences = filteredText_1.split('.').map(function (sentence) { return sentence.trim() + '.'; });
                                     formattedText = sentences.join('\n');
                                     // Debugging: Check the content of formattedText
                                     console.log('Formatted Text Length:', formattedText.length);
                                     console.log('Formatted Text Preview:', formattedText.slice(0, 200)); // Preview first 200 characters
-                                    if (!anyItemFound_1) return [3 /*break*/, 3];
                                     outputFileName = 'parsed-document.txt';
                                     fs.writeFileSync(outputFileName, formattedText);
                                     console.log("Relevant information has been saved to ".concat(outputFileName));
@@ -374,31 +394,27 @@ function fetchAndParseURL(url) {
                                     summaryFileName = 'summary.txt';
                                     fs.writeFileSync(summaryFileName, summary);
                                     console.log("Summary has been saved to ".concat(summaryFileName));
-                                    return [3 /*break*/, 4];
+                                    return [2 /*return*/, "break"];
                                 case 3:
-                                    console.log('The document does not contain the required items and will not be saved.');
-                                    _b.label = 4;
-                                case 4: return [2 /*return*/, "break"];
-                                case 5:
                                     error_2 = _b.sent();
-                                    if (!axios_1.default.isAxiosError(error_2)) return [3 /*break*/, 9];
+                                    if (!axios_1.default.isAxiosError(error_2)) return [3 /*break*/, 7];
                                     // Handle AxiosError
                                     console.error('Error fetching or parsing the URL:', error_2.message);
-                                    if (!(error_2.response && error_2.response.status === 403)) return [3 /*break*/, 7];
+                                    if (!(error_2.response && error_2.response.status === 403)) return [3 /*break*/, 5];
                                     console.log('Received 403 Forbidden error. Trying again...');
                                     attempt++;
                                     return [4 /*yield*/, new Promise(function (resolve) { return setTimeout(resolve, 5000); })];
-                                case 6:
+                                case 4:
                                     _b.sent(); // Wait before retrying
-                                    return [3 /*break*/, 8];
-                                case 7: return [2 /*return*/, "break"];
-                                case 8: return [3 /*break*/, 10];
-                                case 9:
+                                    return [3 /*break*/, 6];
+                                case 5: return [2 /*return*/, "break"];
+                                case 6: return [3 /*break*/, 8];
+                                case 7:
                                     // Handle non-Axios errors
-                                    console.error('Unexpected error:', error_2);
+                                    console.error('Unexpected error:', error_2 instanceof Error ? error_2.message : 'Unknown error');
                                     return [2 /*return*/, "break"];
-                                case 10: return [3 /*break*/, 11];
-                                case 11: return [2 /*return*/];
+                                case 8: return [3 /*break*/, 9];
+                                case 9: return [2 /*return*/];
                             }
                         });
                     };
