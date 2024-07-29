@@ -246,7 +246,8 @@ var cheerio = require("cheerio");
 var fs = require("fs");
 var html_entities_1 = require("html-entities");
 // URL to fetch
-var url = 'https://www.sec.gov/Archives/edgar/data/1018724/000101872418000002/0001018724-18-000002.txt';
+//const url = 'https://www.sec.gov/Archives/edgar/data/1018724/000101872418000002/0001018724-18-000002.txt';
+var url = 'https://www.sec.gov/Archives/edgar/data/1018724/000119312517374998/0001193125-17-374998.txt';
 // List of User-Agents to rotate
 var userAgents = [
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
@@ -271,7 +272,7 @@ function summarizeText(text) {
                 case 0:
                     _a.trys.push([0, 2, , 3]);
                     return [4 /*yield*/, axios_1.default.post(apiUrl, {
-                            instructions: 'Please summarize the provided input text.',
+                            instructions: 'Summarize the following 8-K filing. Include key details and main events, but keep the summary concise.', //v2 Please summarize the provided input text. Include items mentioned.
                             examples: [], // Keep empty if no examples are needed
                             input: text
                         }, {
